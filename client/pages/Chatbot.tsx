@@ -840,14 +840,14 @@ export default function Chatbot() {
                       <Label>Translate extracted text to:</Label>
                       <div className="mt-2">
                         <Select
-                          value={ocrTranslateLang || ""}
-                          onValueChange={(value) => setOcrTranslateLang(value || null)}
+                          value={ocrTranslateLang || "none"}
+                          onValueChange={(value) => setOcrTranslateLang(value === "none" ? null : value)}
                         >
                           <SelectTrigger className="w-full">
                             <SelectValue placeholder="No translation (extract only)" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">No translation</SelectItem>
+                            <SelectItem value="none">No translation</SelectItem>
                             {languages.map((l) => (
                               <SelectItem key={l.code} value={l.code}>
                                 {l.name} ({l.code})
