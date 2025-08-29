@@ -71,7 +71,7 @@ export default function Settings() {
   );
   const [fastMode, setFastMode] = useLocalStorage<boolean>(
     "settings.fastMode",
-    false,
+    true,
   );
   const [ocrLang, setOcrLang] = useLocalStorage<string>(
     "settings.ocrLang",
