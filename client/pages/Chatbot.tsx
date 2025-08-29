@@ -50,9 +50,12 @@ interface Message {
 }
 
 export default function Chatbot() {
+  const messageIdRef = useRef(1);
+  const getNextMessageId = () => `msg-${++messageIdRef.current}`;
+
   const [messages, setMessages] = useState<Message[]>([
     {
-      id: "1",
+      id: "msg-1",
       content:
         "Hello! I'm Universal Bot. I can help you with text-to-speech, speech-to-text, translation, and more. How can I assist you today?",
       isUser: false,
@@ -110,7 +113,7 @@ export default function Chatbot() {
     if (!inputMessage.trim()) return;
 
     const newMessage: Message = {
-      id: Date.now().toString(),
+      id: getNextMessageId(),
       content: inputMessage,
       isUser: true,
       timestamp: new Date(),
@@ -143,7 +146,7 @@ export default function Chatbot() {
         }
 
         const botResponse: Message = {
-          id: (Date.now() + 1).toString(),
+          id: getNextMessageId(),
           content: errorMessage,
           isUser: false,
           timestamp: new Date(),
@@ -189,7 +192,7 @@ export default function Chatbot() {
       }
 
       const botResponse: Message = {
-        id: (Date.now() + 1).toString(),
+        id: getNextMessageId(),
         content: finalText,
         isUser: false,
         timestamp: new Date(),
@@ -197,7 +200,7 @@ export default function Chatbot() {
       setMessages((prev) => [...prev, botResponse]);
     } catch (e) {
       const botResponse: Message = {
-        id: (Date.now() + 1).toString(),
+        id: getNextMessageId(),
         content: "There was an error contacting the server.",
         isUser: false,
         timestamp: new Date(),
@@ -328,7 +331,7 @@ export default function Chatbot() {
           : "❌ Translation failed. Please try again.";
 
         const botResponse: Message = {
-          id: (Date.now() + 2).toString(),
+          id: getNextMessageId(),
           content: errorMsg,
           isUser: false,
           timestamp: new Date(),
@@ -340,7 +343,7 @@ export default function Chatbot() {
       const translated: string = data?.translation || "";
       if (translated) {
         const botResponse: Message = {
-          id: (Date.now() + 2).toString(),
+          id: getNextMessageId(),
           content: translated,
           isUser: false,
           timestamp: new Date(),
@@ -348,7 +351,7 @@ export default function Chatbot() {
         setMessages((prev) => [...prev, botResponse]);
       } else {
         const botResponse: Message = {
-          id: (Date.now() + 2).toString(),
+          id: getNextMessageId(),
           content: "❌ No translation received. Please try again.",
           isUser: false,
           timestamp: new Date(),
@@ -357,7 +360,7 @@ export default function Chatbot() {
       }
     } catch (error) {
       const botResponse: Message = {
-        id: (Date.now() + 2).toString(),
+        id: getNextMessageId(),
         content: "❌ Translation service unavailable. Please try again later.",
         isUser: false,
         timestamp: new Date(),
@@ -805,7 +808,7 @@ export default function Chatbot() {
                       onClick={() => {
                         setUsecase(uc);
                         const info: Message = {
-                          id: (Date.now() + 3).toString(),
+                          id: getNextMessageId(),
                           content: `Mode set: ${uc.title}. ${uc.description}`,
                           isUser: false,
                           timestamp: new Date(),
@@ -885,7 +888,7 @@ export default function Chatbot() {
 
                           const showMessage = (content: string) => {
                             const msg: Message = {
-                              id: (Date.now() + 4).toString(),
+                              id: getNextMessageId(),
                               content,
                               isUser: false,
                               timestamp: new Date(),
@@ -1064,7 +1067,7 @@ export default function Chatbot() {
 
                           const showMessage = (content: string, isSuccess: boolean = false) => {
                             const msg: Message = {
-                              id: (Date.now() + 4).toString(),
+                              id: getNextMessageId(),
                               content,
                               isUser: false,
                               timestamp: new Date(),
