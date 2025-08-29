@@ -41,6 +41,7 @@ import {
   Settings,
   Camera,
 } from "lucide-react";
+import { sendChatMessage, translateText, detectLanguage, generateTTS, chunkText } from "@/lib/api";
 
 interface Message {
   id: string;
@@ -124,41 +125,13 @@ export default function Chatbot() {
     setIsSending(true);
 
     try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt: newMessage.content,
-          context: usecase?.context ?? "",
-          fast: readSetting<boolean>("settings.fastMode", false),
-        }),
-      });
-      const data = await res.json();
+      const data = await sendChatMessage(
+        newMessage.content,
+        usecase?.context ?? "",
+        readSetting<boolean>("settings.fastMode", true)
+      );
 
-      // Handle quota exceeded error specifically
-      if (!res.ok) {
-        let errorMessage = "Sorry, I couldn't generate a reply.";
-
-        if (res.status === 429 || data?.error?.includes("quota")) {
-          errorMessage = "🚫 Google AI quota exceeded for today. Please try again tomorrow or upgrade your API plan for unlimited usage.";
-        } else if (data?.error) {
-          errorMessage = `Error: ${data.error}`;
-        }
-
-        const botResponse: Message = {
-          id: getNextMessageId(),
-          content: errorMessage,
-          isUser: false,
-          timestamp: new Date(),
-        };
-        setMessages((prev) => [...prev, botResponse]);
-        return;
-      }
-
-      const replyText =
-        typeof data?.reply === "string" && data.reply.trim()
-          ? data.reply
-          : "Sorry, I couldn't generate a reply.";
+      const replyText = data.reply || "Sorry, I couldn't generate a reply.";
 
       let finalText = replyText;
       const storedAuto = readSetting<boolean>("settings.autoTranslate", false);
@@ -166,28 +139,12 @@ export default function Chatbot() {
       const effectiveTarget = targetLang ?? (storedAuto ? storedTL : null);
       if (effectiveTarget) {
         try {
-          const tr = await fetch("/api/translate", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              text: replyText,
-              source: "auto",
-              target: effectiveTarget,
-            }),
-          });
-          const trData = await tr.json();
-
-          if (tr.ok && typeof trData?.translation === "string" && trData.translation.trim()) {
+          const trData = await translateText(replyText, "auto", effectiveTarget);
+          if (trData.translation && trData.translation.trim()) {
             finalText = trData.translation;
-          } else if (!tr.ok) {
-            // If translation fails, add a note to the original response
-            const errorNote = tr.status === 429 || trData?.error?.includes("quota")
-              ? " [Auto-translation quota exceeded]"
-              : " [Auto-translation failed]";
-            finalText = replyText + errorNote;
           }
-        } catch {
-          finalText = replyText + " [Auto-translation unavailable]";
+        } catch (error) {
+          finalText = replyText + " [Auto-translation failed]";
         }
       }
 
@@ -314,37 +271,12 @@ export default function Chatbot() {
     if (!text) return;
     setTranslating(true);
     try {
-      const res = await fetch("/api/translate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text,
-          source: detectedLang || "auto",
-          target: to,
-        }),
-      });
-      const data = await res.json();
+      const data = await translateText(text, detectedLang || "auto", to);
 
-      if (!res.ok) {
-        const errorMsg = res.status === 429 || data?.error?.includes("quota")
-          ? "🚫 Translation quota exceeded. Using fallback services..."
-          : "❌ Translation failed. Please try again.";
-
+      if (data.translation) {
         const botResponse: Message = {
           id: getNextMessageId(),
-          content: errorMsg,
-          isUser: false,
-          timestamp: new Date(),
-        };
-        setMessages((prev) => [...prev, botResponse]);
-        return;
-      }
-
-      const translated: string = data?.translation || "";
-      if (translated) {
-        const botResponse: Message = {
-          id: getNextMessageId(),
-          content: translated,
+          content: data.translation,
           isUser: false,
           timestamp: new Date(),
         };
@@ -390,17 +322,13 @@ export default function Chatbot() {
     return parts.length ? parts : [t];
   };
 
-  const playWithServerTTS = async (text: string, lang: string) => {
+  const playWithTTS = async (text: string, lang: string) => {
     const chunks = chunkText(text);
     audioRef.current?.pause?.();
     audioRef.current = new Audio();
 
     for (let i = 0; i < chunks.length; i++) {
-      const q = encodeURIComponent(chunks[i]);
-      const l = encodeURIComponent(lang);
-      const res = await fetch(`/api/tts?text=${q}&lang=${l}`);
-      if (!res.ok) throw new Error("tts-failed");
-      const blob = await res.blob();
+      const blob = await generateTTS(chunks[i], lang);
       const url = URL.createObjectURL(blob);
       await new Promise<void>((resolve, reject) => {
         if (!audioRef.current) {
@@ -441,9 +369,9 @@ export default function Chatbot() {
     const lang = detectedLang || guessLang(textToSpeak) || "en";
     setIsSpeaking(true);
 
-    // Try server-based TTS first for broader language coverage
+    // Try Google TTS first for broader language coverage
     try {
-      await playWithServerTTS(textToSpeak, lang);
+      await playWithTTS(textToSpeak, lang);
       setIsSpeaking(false);
       return;
     } catch {}
@@ -542,16 +470,10 @@ export default function Chatbot() {
     const t = setTimeout(async () => {
       try {
         setDetecting(true);
-        const res = await fetch("/api/detect-lang", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text }),
-        });
-        const data = await res.json();
+        const data = await detectLanguage(text);
         if (cancelled) return;
         let lang: string | null = data?.language ?? null;
-        let conf: number | null =
-          typeof data?.confidence === "number" ? data.confidence : null;
+        let conf: number | null = data?.confidence;
         if (!lang && guess) {
           lang = guess;
           conf = null;
@@ -772,7 +694,7 @@ export default function Chatbot() {
                     },
                     {
                       key: "womens_rights",
-                      title: "Women’s Rights",
+                      title: "Women���s Rights",
                       description:
                         "Private multilingual guidance on health, rights, safety.",
                       context:
