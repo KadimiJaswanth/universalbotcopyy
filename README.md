@@ -14,6 +14,7 @@ A powerful AI chatbot with image-to-text, translation, and text-to-speech capabi
 ## 🚀 Quick Setup
 
 ### 1. Clone and Install
+
 ```bash
 git clone <your-repo>
 cd universal-bot-react
@@ -21,12 +22,15 @@ pnpm install
 ```
 
 ### 2. Add Your Gemini API Key
+
 Create a `.env` file in the root directory:
+
 ```env
 VITE_GEMINI_API_KEY=your_gemini_api_key_here
 ```
 
 ### 3. Start Development
+
 ```bash
 pnpm dev
 ```
@@ -66,6 +70,7 @@ pnpm preview
 ## 🌐 Deploy
 
 Deploy the `dist` folder to any static hosting service:
+
 - Netlify
 - Vercel
 - GitHub Pages
@@ -73,9 +78,9 @@ Deploy the `dist` folder to any static hosting service:
 
 ## ⚙️ Environment Variables
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `VITE_GEMINI_API_KEY` | Your Google Gemini API key | ✅ Yes |
+| Variable              | Description                | Required |
+| --------------------- | -------------------------- | -------- |
+| `VITE_GEMINI_API_KEY` | Your Google Gemini API key | ✅ Yes   |
 
 ## 🤝 Contributing
 

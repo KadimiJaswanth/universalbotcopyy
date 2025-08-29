@@ -1,12 +1,19 @@
 // API utilities for frontend-only Universal Bot
 
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent";
+const GEMINI_API_URL =
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent";
 
 // Chat API using Gemini directly
-export async function sendChatMessage(prompt: string, context?: string, fast?: boolean) {
+export async function sendChatMessage(
+  prompt: string,
+  context?: string,
+  fast?: boolean,
+) {
   if (!GEMINI_API_KEY) {
-    throw new Error("Gemini API key not configured. Please set VITE_GEMINI_API_KEY in your .env file.");
+    throw new Error(
+      "Gemini API key not configured. Please set VITE_GEMINI_API_KEY in your .env file.",
+    );
   }
 
   const fullPrompt = context ? `${context.trim()}\n\nUser: ${prompt}` : prompt;
@@ -44,11 +51,11 @@ export async function sendChatMessage(prompt: string, context?: string, fast?: b
       const text = await response.text().catch(() => "");
       if (text.includes("quota") || text.includes("RESOURCE_EXHAUSTED")) {
         return {
-          reply: getFallbackResponse(prompt)
+          reply: getFallbackResponse(prompt),
         };
       }
     }
-    
+
     const errorText = await response.text().catch(() => "");
     throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
   }
@@ -65,29 +72,34 @@ export async function sendChatMessage(prompt: string, context?: string, fast?: b
 }
 
 // Translation API using Google Translate
-export async function translateText(text: string, source: string, target: string) {
+export async function translateText(
+  text: string,
+  source: string,
+  target: string,
+) {
   if (!GEMINI_API_KEY) {
     throw new Error("API key not configured for translation.");
   }
 
-  const GOOGLE_TRANSLATE_URL = "https://translation.googleapis.com/language/translate/v2";
-  
+  const GOOGLE_TRANSLATE_URL =
+    "https://translation.googleapis.com/language/translate/v2";
+
   try {
     const params = new URLSearchParams({
       key: GEMINI_API_KEY,
       q: text,
       target: target,
-      format: 'text'
+      format: "text",
     });
-    
+
     if (source !== "auto") {
-      params.append('source', source);
+      params.append("source", source);
     }
 
     const response = await fetch(`${GOOGLE_TRANSLATE_URL}?${params}`, {
       method: "POST",
     });
-    
+
     if (response.ok) {
       const data = await response.json();
       const translated = data?.data?.translations?.[0]?.translatedText ?? "";
@@ -106,7 +118,7 @@ export async function translateText(text: string, source: string, target: string
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ q: text, source, target, format: "text" }),
     });
-    
+
     if (response.ok) {
       const data = await response.json();
       const translated = data?.translatedText ?? data?.translation ?? "";
@@ -125,25 +137,26 @@ export async function detectLanguage(text: string) {
     return { language: guessLanguage(text), confidence: null };
   }
 
-  const GOOGLE_DETECT_URL = "https://translation.googleapis.com/language/translate/v2/detect";
-  
+  const GOOGLE_DETECT_URL =
+    "https://translation.googleapis.com/language/translate/v2/detect";
+
   try {
     const params = new URLSearchParams({
       key: GEMINI_API_KEY,
-      q: text
+      q: text,
     });
 
     const response = await fetch(`${GOOGLE_DETECT_URL}?${params}`, {
       method: "POST",
     });
-    
+
     if (response.ok) {
       const data = await response.json();
       const detection = data?.data?.detections?.[0]?.[0];
       if (detection?.language) {
-        return { 
-          language: detection.language, 
-          confidence: detection.confidence || null 
+        return {
+          language: detection.language,
+          confidence: detection.confidence || null,
         };
       }
     }
@@ -156,13 +169,17 @@ export async function detectLanguage(text: string) {
 }
 
 // Text-to-Speech using Google TTS
-export async function generateTTS(text: string, lang: string = "en"): Promise<Blob> {
+export async function generateTTS(
+  text: string,
+  lang: string = "en",
+): Promise<Blob> {
   const TTS_BASE = "https://translate.google.com/translate_tts";
   const url = `${TTS_BASE}?ie=UTF-8&q=${encodeURIComponent(text)}&tl=${encodeURIComponent(lang)}&client=tw-ob`;
 
   const response = await fetch(url, {
     headers: {
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
       Referer: "https://translate.google.com/",
       Accept: "audio/mpeg,audio/*;q=0.9,*/*;q=0.8",
     },
@@ -178,19 +195,27 @@ export async function generateTTS(text: string, lang: string = "en"): Promise<Bl
 // Helper functions
 function getFallbackResponse(prompt: string): string {
   const lowerPrompt = prompt.toLowerCase();
-  
+
   if (lowerPrompt.includes("translate") || lowerPrompt.includes("language")) {
     return "🌍 I can help with translation! Use the 'Translate' button above to translate text between languages.";
   }
-  
-  if (lowerPrompt.includes("speak") || lowerPrompt.includes("voice") || lowerPrompt.includes("audio")) {
+
+  if (
+    lowerPrompt.includes("speak") ||
+    lowerPrompt.includes("voice") ||
+    lowerPrompt.includes("audio")
+  ) {
     return "🔊 You can use the 'Text-to-Speech' button to hear any text spoken aloud!";
   }
-  
-  if (lowerPrompt.includes("emergency") || lowerPrompt.includes("help") || lowerPrompt.includes("urgent")) {
+
+  if (
+    lowerPrompt.includes("emergency") ||
+    lowerPrompt.includes("help") ||
+    lowerPrompt.includes("urgent")
+  ) {
     return "🚨 For emergencies, please contact local emergency services. Use the translation and text-to-speech features to communicate your needs clearly.";
   }
-  
+
   return `🤖 The AI chat service has reached its daily limit, but other features are still available! Try using:
 • 🔊 Text-to-Speech to hear text spoken
 • 🌍 Translation to convert between languages  
@@ -220,7 +245,7 @@ function guessLanguage(text: string): string | null {
 export function chunkText(text: string, maxLen: number = 180): string[] {
   const parts: string[] = [];
   const sentences = text.replace(/\s+/g, " ").split(/(?<=[.!?。！？])\s+/);
-  
+
   for (const sentence of sentences) {
     if (sentence.length <= maxLen) {
       if (sentence.trim()) parts.push(sentence.trim());
@@ -232,6 +257,6 @@ export function chunkText(text: string, maxLen: number = 180): string[] {
       }
     }
   }
-  
+
   return parts.length ? parts : [text];
 }

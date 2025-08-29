@@ -319,11 +319,17 @@ export default function Settings() {
                           </SelectItem>
                         ) : (
                           voices
-                            .filter((v, index, arr) =>
-                              arr.findIndex(voice => voice.voiceURI === v.voiceURI) === index
+                            .filter(
+                              (v, index, arr) =>
+                                arr.findIndex(
+                                  (voice) => voice.voiceURI === v.voiceURI,
+                                ) === index,
                             )
                             .map((v, index) => (
-                              <SelectItem key={`${v.voiceURI}-${index}`} value={v.voiceURI}>
+                              <SelectItem
+                                key={`${v.voiceURI}-${index}`}
+                                value={v.voiceURI}
+                              >
                                 {v.name} {v.lang ? `(${v.lang})` : ""}
                               </SelectItem>
                             ))
@@ -349,7 +355,9 @@ export default function Settings() {
                         <SelectItem value="ar">Arabic</SelectItem>
                         <SelectItem value="bg">Bulgarian</SelectItem>
                         <SelectItem value="zh">Chinese (Simplified)</SelectItem>
-                        <SelectItem value="zh-TW">Chinese (Traditional)</SelectItem>
+                        <SelectItem value="zh-TW">
+                          Chinese (Traditional)
+                        </SelectItem>
                         <SelectItem value="hr">Croatian</SelectItem>
                         <SelectItem value="cs">Czech</SelectItem>
                         <SelectItem value="da">Danish</SelectItem>
@@ -379,7 +387,8 @@ export default function Settings() {
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Language for Image to Text OCR. Works offline using Tesseract.js.
+                      Language for Image to Text OCR. Works offline using
+                      Tesseract.js.
                     </p>
                   </div>
                 </div>
