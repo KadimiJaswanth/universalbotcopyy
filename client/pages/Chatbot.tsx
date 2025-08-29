@@ -571,6 +571,56 @@ export default function Chatbot() {
     }
   };
 
+  // Image preprocessing function for better OCR quality
+  const preprocessImageForOCR = async (dataUrl: string): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d')!;
+
+        // Set canvas to 2x the image size for better quality
+        canvas.width = img.width * 2;
+        canvas.height = img.height * 2;
+
+        // Enable image smoothing
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+
+        // Fill with white background
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Draw image at 2x size
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        // Get image data for processing
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+
+        // Convert to grayscale and enhance contrast
+        for (let i = 0; i < data.length; i += 4) {
+          const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+
+          // Enhance contrast (make text darker, background lighter)
+          const enhanced = gray < 128 ? Math.max(0, gray - 30) : Math.min(255, gray + 30);
+
+          data[i] = enhanced;     // Red
+          data[i + 1] = enhanced; // Green
+          data[i + 2] = enhanced; // Blue
+          // Alpha remains the same
+        }
+
+        // Put processed image data back
+        ctx.putImageData(imageData, 0, 0);
+
+        // Return as high-quality JPEG
+        resolve(canvas.toDataURL('image/jpeg', 0.95));
+      };
+      img.src = dataUrl;
+    });
+  };
+
   return (
     <Layout>
       <div className="flex h-[calc(100vh-8rem)]">
