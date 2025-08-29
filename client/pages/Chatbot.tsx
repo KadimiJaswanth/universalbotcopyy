@@ -22,6 +22,14 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Send,
   Mic,
@@ -65,6 +73,7 @@ export default function Chatbot() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrTranslateLang, setOcrTranslateLang] = useState<string | null>(null);
   const [usecase, setUsecase] = useState<null | {
     key: string;
     title: string;
@@ -571,7 +580,7 @@ export default function Chatbot() {
     }
   };
 
-  // Image preprocessing function for better OCR quality
+  // Advanced image preprocessing function for better OCR quality
   const preprocessImageForOCR = async (dataUrl: string): Promise<string> => {
     return new Promise((resolve) => {
       const img = new Image();
@@ -579,11 +588,12 @@ export default function Chatbot() {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d')!;
 
-        // Set canvas to 2x the image size for better quality
-        canvas.width = img.width * 2;
-        canvas.height = img.height * 2;
+        // Scale up for better quality (3x instead of 2x)
+        const scale = 3;
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
 
-        // Enable image smoothing
+        // Enable high-quality image smoothing
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
 
@@ -591,31 +601,32 @@ export default function Chatbot() {
         ctx.fillStyle = 'white';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Draw image at 2x size
+        // Draw image at scaled size
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
         // Get image data for processing
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const data = imageData.data;
 
-        // Convert to grayscale and enhance contrast
+        // Advanced preprocessing: threshold-based binarization
         for (let i = 0; i < data.length; i += 4) {
           const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
 
-          // Enhance contrast (make text darker, background lighter)
-          const enhanced = gray < 128 ? Math.max(0, gray - 30) : Math.min(255, gray + 30);
+          // Adaptive threshold: make text black, background white
+          const threshold = 130; // Adjust this value for different image types
+          const processed = gray < threshold ? 0 : 255; // Black text, white background
 
-          data[i] = enhanced;     // Red
-          data[i + 1] = enhanced; // Green
-          data[i + 2] = enhanced; // Blue
+          data[i] = processed;     // Red
+          data[i + 1] = processed; // Green
+          data[i + 2] = processed; // Blue
           // Alpha remains the same
         }
 
         // Put processed image data back
         ctx.putImageData(imageData, 0, 0);
 
-        // Return as high-quality JPEG
-        resolve(canvas.toDataURL('image/jpeg', 0.95));
+        // Return as high-quality PNG for better text preservation
+        resolve(canvas.toDataURL('image/png'));
       };
       img.src = dataUrl;
     });
@@ -818,11 +829,38 @@ export default function Chatbot() {
                 </Button>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>Image to Text</DialogTitle>
+                    <DialogTitle>Image to Text & Translation</DialogTitle>
                     <DialogDescription>
-                      Open your camera, capture, and extract text.
+                      Capture/upload image, extract text, and optionally translate it.
                     </DialogDescription>
                   </DialogHeader>
+
+                  <div className="mb-4 space-y-3">
+                    <div>
+                      <Label>Translate extracted text to:</Label>
+                      <div className="mt-2">
+                        <Select
+                          value={ocrTranslateLang || ""}
+                          onValueChange={(value) => setOcrTranslateLang(value || null)}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="No translation (extract only)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="">No translation</SelectItem>
+                            {languages.map((l) => (
+                              <SelectItem key={l.code} value={l.code}>
+                                {l.name} ({l.code})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Current OCR language: {readSetting<string>("settings.ocrLang", "en")} (change in Settings)
+                      </p>
+                    </div>
+                  </div>
                   <div className="space-y-3">
                     <video
                       ref={videoRef}
@@ -897,9 +935,10 @@ export default function Chatbot() {
                             const { Tesseract } = window as any;
 
                             const result = await Tesseract.recognize(preprocessedImage, tesseractLang, {
-                              tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK,
-                              tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,!?;:-()[]{}"\'/\\',
-                              preserve_interword_spaces: '1'
+                              tessedit_pageseg_mode: Tesseract.PSM.AUTO,
+                              tessedit_ocr_engine_mode: Tesseract.OEM.LSTM_ONLY,
+                              preserve_interword_spaces: '1',
+                              tessedit_char_blacklist: '|',
                             });
 
                             let extractedText = result?.data?.text?.trim();
@@ -913,8 +952,46 @@ export default function Chatbot() {
                             }
 
                             if (extractedText && extractedText.length > 2) {
+                              // Add extracted text to input
                               setInputMessage((prev) => (prev ? prev + " " : "") + extractedText);
-                              showMessage(`✅ High-quality text from file (${ocrLang}): "${extractedText.substring(0, 150)}${extractedText.length > 150 ? "..." : ""}"`);
+
+                              // Show original extracted text
+                              showMessage(`📄 Text from file (${ocrLang}): "${extractedText}"`);
+
+                              // Auto-translate if target language is selected
+                              if (ocrTranslateLang && ocrTranslateLang !== ocrLang) {
+                                showMessage("🌍 Translating extracted text...");
+
+                                try {
+                                  const translateRes = await fetch("/api/translate", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({
+                                      text: extractedText,
+                                      source: ocrLang,
+                                      target: ocrTranslateLang,
+                                    }),
+                                  });
+
+                                  const translateData = await translateRes.json();
+
+                                  if (translateRes.ok && translateData.translation) {
+                                    const translatedText = translateData.translation.trim();
+
+                                    // Add translated text to input
+                                    setInputMessage((prev) => prev + " → " + translatedText);
+
+                                    // Show translated result
+                                    showMessage(`✅ Translated to ${ocrTranslateLang}: "${translatedText}"`);
+                                  } else {
+                                    showMessage("❌ Translation failed. Using original text only.");
+                                  }
+                                } catch {
+                                  showMessage("❌ Translation service unavailable. Using original text only.");
+                                }
+                              } else {
+                                showMessage(`✅ File processing complete! Ready to send.`);
+                              }
                             } else {
                               showMessage("⚠️ No clear text detected in uploaded image.");
                             }
@@ -1035,9 +1112,10 @@ export default function Chatbot() {
                                   console.log(`OCR Progress: ${progress}%`);
                                 }
                               },
-                              tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK,
-                              tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,!?;:-()[]{}"\'/\\',
-                              preserve_interword_spaces: '1'
+                              tessedit_pageseg_mode: Tesseract.PSM.AUTO,
+                              tessedit_ocr_engine_mode: Tesseract.OEM.LSTM_ONLY,
+                              preserve_interword_spaces: '1',
+                              tessedit_char_blacklist: '|',
                             });
 
                             let extractedText = result?.data?.text?.trim();
@@ -1051,8 +1129,46 @@ export default function Chatbot() {
                             }
 
                             if (extractedText && extractedText.length > 2) {
+                              // Add extracted text to input
                               setInputMessage((prev) => (prev ? prev + " " : "") + extractedText);
-                              showMessage(`✅ High-quality text extracted (${ocrLang}): "${extractedText.substring(0, 150)}${extractedText.length > 150 ? "..." : ""}"`);
+
+                              // Show original extracted text
+                              showMessage(`📄 Original text (${ocrLang}): "${extractedText}"`);
+
+                              // Auto-translate if target language is selected
+                              if (ocrTranslateLang && ocrTranslateLang !== ocrLang) {
+                                showMessage("🌍 Translating extracted text...");
+
+                                try {
+                                  const translateRes = await fetch("/api/translate", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({
+                                      text: extractedText,
+                                      source: ocrLang,
+                                      target: ocrTranslateLang,
+                                    }),
+                                  });
+
+                                  const translateData = await translateRes.json();
+
+                                  if (translateRes.ok && translateData.translation) {
+                                    const translatedText = translateData.translation.trim();
+
+                                    // Add translated text to input
+                                    setInputMessage((prev) => prev + " → " + translatedText);
+
+                                    // Show translated result
+                                    showMessage(`✅ Translated to ${ocrTranslateLang}: "${translatedText}"`);
+                                  } else {
+                                    showMessage("❌ Translation failed. Using original text only.");
+                                  }
+                                } catch {
+                                  showMessage("❌ Translation service unavailable. Using original text only.");
+                                }
+                              } else {
+                                showMessage(`✅ Text extraction complete! Ready to send.`);
+                              }
                             } else {
                               showMessage("⚠️ No clear text detected. Try with better lighting or clearer text.");
                             }
