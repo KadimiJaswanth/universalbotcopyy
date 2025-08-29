@@ -306,6 +306,22 @@ export default function Chatbot() {
         }),
       });
       const data = await res.json();
+
+      if (!res.ok) {
+        const errorMsg = res.status === 429 || data?.error?.includes("quota")
+          ? "🚫 Translation quota exceeded. Using fallback services..."
+          : "❌ Translation failed. Please try again.";
+
+        const botResponse: Message = {
+          id: (Date.now() + 2).toString(),
+          content: errorMsg,
+          isUser: false,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, botResponse]);
+        return;
+      }
+
       const translated: string = data?.translation || "";
       if (translated) {
         const botResponse: Message = {
@@ -315,7 +331,23 @@ export default function Chatbot() {
           timestamp: new Date(),
         };
         setMessages((prev) => [...prev, botResponse]);
+      } else {
+        const botResponse: Message = {
+          id: (Date.now() + 2).toString(),
+          content: "❌ No translation received. Please try again.",
+          isUser: false,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, botResponse]);
       }
+    } catch (error) {
+      const botResponse: Message = {
+        id: (Date.now() + 2).toString(),
+        content: "❌ Translation service unavailable. Please try again later.",
+        isUser: false,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, botResponse]);
     } finally {
       setTranslating(false);
     }
