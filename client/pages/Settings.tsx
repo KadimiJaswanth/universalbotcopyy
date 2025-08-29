@@ -318,11 +318,15 @@ export default function Settings() {
                             System default
                           </SelectItem>
                         ) : (
-                          voices.map((v) => (
-                            <SelectItem key={v.voiceURI} value={v.voiceURI}>
-                              {v.name} {v.lang ? `(${v.lang})` : ""}
-                            </SelectItem>
-                          ))
+                          voices
+                            .filter((v, index, arr) =>
+                              arr.findIndex(voice => voice.voiceURI === v.voiceURI) === index
+                            )
+                            .map((v, index) => (
+                              <SelectItem key={`${v.voiceURI}-${index}`} value={v.voiceURI}>
+                                {v.name} {v.lang ? `(${v.lang})` : ""}
+                              </SelectItem>
+                            ))
                         )}
                       </SelectContent>
                     </Select>
