@@ -379,7 +379,7 @@ export default function Settings() {
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Used by Image to Text.
+                      Language for Image to Text OCR. Works offline using Tesseract.js.
                     </p>
                   </div>
                 </div>
