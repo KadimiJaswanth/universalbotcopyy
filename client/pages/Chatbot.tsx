@@ -947,7 +947,8 @@ export default function Chatbot() {
                             if (extractedText) {
                               extractedText = extractedText
                                 .replace(/\s+/g, ' ')  // Multiple spaces to single space
-                                .replace(/[^\w\s.,!?;:()-]/g, '')  // Remove strange characters
+                                .replace(/[^\w\s.,!?;:()\-'"]/g, ' ')  // Remove most special characters but keep common punctuation
+                                .replace(/\s+/g, ' ')  // Clean up any double spaces created
                                 .trim();
                             }
 
@@ -1124,7 +1125,8 @@ export default function Chatbot() {
                             if (extractedText) {
                               extractedText = extractedText
                                 .replace(/\s+/g, ' ')  // Multiple spaces to single space
-                                .replace(/[^\w\s.,!?;:()-]/g, '')  // Remove strange characters
+                                .replace(/[^\w\s.,!?;:()\-'"]/g, ' ')  // Remove most special characters but keep common punctuation
+                                .replace(/\s+/g, ' ')  // Clean up any double spaces created
                                 .trim();
                             }
 
