@@ -345,20 +345,30 @@ export default function Settings() {
                         <SelectValue placeholder="Select OCR language" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="eng">English (eng)</SelectItem>
-                        <SelectItem value="spa">Spanish (spa)</SelectItem>
-                        <SelectItem value="fra">French (fra)</SelectItem>
-                        <SelectItem value="deu">German (deu)</SelectItem>
-                        <SelectItem value="hin">Hindi (hin)</SelectItem>
-                        <SelectItem value="ara">Arabic (ara)</SelectItem>
-                        <SelectItem value="ben">Bengali (ben)</SelectItem>
-                        <SelectItem value="tam">Tamil (tam)</SelectItem>
-                        <SelectItem value="tel">Telugu (tel)</SelectItem>
-                        <SelectItem value="jpn">Japanese (jpn)</SelectItem>
-                        <SelectItem value="kor">Korean (kor)</SelectItem>
-                        <SelectItem value="chi_sim">
-                          Chinese Simplified (chi_sim)
-                        </SelectItem>
+                        <SelectItem value="eng">English</SelectItem>
+                        <SelectItem value="ara">Arabic</SelectItem>
+                        <SelectItem value="bul">Bulgarian</SelectItem>
+                        <SelectItem value="chs">Chinese (Simplified)</SelectItem>
+                        <SelectItem value="cht">Chinese (Traditional)</SelectItem>
+                        <SelectItem value="hrv">Croatian</SelectItem>
+                        <SelectItem value="cze">Czech</SelectItem>
+                        <SelectItem value="dan">Danish</SelectItem>
+                        <SelectItem value="dut">Dutch</SelectItem>
+                        <SelectItem value="fin">Finnish</SelectItem>
+                        <SelectItem value="fre">French</SelectItem>
+                        <SelectItem value="ger">German</SelectItem>
+                        <SelectItem value="gre">Greek</SelectItem>
+                        <SelectItem value="hun">Hungarian</SelectItem>
+                        <SelectItem value="kor">Korean</SelectItem>
+                        <SelectItem value="ita">Italian</SelectItem>
+                        <SelectItem value="jpn">Japanese</SelectItem>
+                        <SelectItem value="pol">Polish</SelectItem>
+                        <SelectItem value="por">Portuguese</SelectItem>
+                        <SelectItem value="rus">Russian</SelectItem>
+                        <SelectItem value="slv">Slovenian</SelectItem>
+                        <SelectItem value="spa">Spanish</SelectItem>
+                        <SelectItem value="swe">Swedish</SelectItem>
+                        <SelectItem value="tur">Turkish</SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground mt-1">
