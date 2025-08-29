@@ -813,18 +813,27 @@ export default function Chatbot() {
                           const video = videoRef.current;
                           if (!video) return;
                           const canvas = document.createElement("canvas");
-                          canvas.width = video.videoWidth || 640;
-                          canvas.height = video.videoHeight || 480;
+
+                          // Limit image size to reduce payload
+                          const maxWidth = 800;
+                          const maxHeight = 600;
+                          let { videoWidth = 640, videoHeight = 480 } = video;
+
+                          // Scale down if too large
+                          if (videoWidth > maxWidth || videoHeight > maxHeight) {
+                            const scale = Math.min(maxWidth / videoWidth, maxHeight / videoHeight);
+                            videoWidth *= scale;
+                            videoHeight *= scale;
+                          }
+
+                          canvas.width = videoWidth;
+                          canvas.height = videoHeight;
                           const ctx = canvas.getContext("2d");
                           if (!ctx) return;
-                          ctx.drawImage(
-                            video,
-                            0,
-                            0,
-                            canvas.width,
-                            canvas.height,
-                          );
-                          const dataUrl = canvas.toDataURL("image/png");
+                          ctx.drawImage(video, 0, 0, videoWidth, videoHeight);
+
+                          // Use JPEG with compression for smaller file size
+                          const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
                           setOcrLoading(true);
                           try {
                             const ocrLang = readSetting<string>(
