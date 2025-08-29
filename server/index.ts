@@ -6,6 +6,7 @@ import { handleChat } from "./routes/chat";
 import { handleDetectLang } from "./routes/detect-lang";
 import { handleTranslate } from "./routes/translate";
 import { handleTTS } from "./routes/tts";
+import { handleOCR } from "./routes/ocr";
 
 export function createServer() {
   const app = express();
@@ -30,6 +31,9 @@ export function createServer() {
   // TTS proxy (GET or POST)
   app.get("/api/tts", handleTTS);
   app.post("/api/tts", handleTTS);
+
+  // OCR (Image to Text)
+  app.post("/api/ocr", handleOCR);
 
   return app;
 }
