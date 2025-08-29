@@ -22,6 +22,14 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Send,
   Mic,
@@ -33,6 +41,13 @@ import {
   Settings,
   Camera,
 } from "lucide-react";
+import {
+  sendChatMessage,
+  translateText,
+  detectLanguage,
+  generateTTS,
+  chunkText,
+} from "@/lib/api";
 
 interface Message {
   id: string;
@@ -42,9 +57,12 @@ interface Message {
 }
 
 export default function Chatbot() {
+  const messageIdRef = useRef(1);
+  const getNextMessageId = () => `msg-${++messageIdRef.current}`;
+
   const [messages, setMessages] = useState<Message[]>([
     {
-      id: "1",
+      id: "msg-1",
       content:
         "Hello! I'm Universal Bot. I can help you with text-to-speech, speech-to-text, translation, and more. How can I assist you today?",
       isUser: false,
@@ -65,6 +83,7 @@ export default function Chatbot() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrTranslateLang, setOcrTranslateLang] = useState<string | null>(null);
   const [usecase, setUsecase] = useState<null | {
     key: string;
     title: string;
@@ -101,7 +120,7 @@ export default function Chatbot() {
     if (!inputMessage.trim()) return;
 
     const newMessage: Message = {
-      id: Date.now().toString(),
+      id: getNextMessageId(),
       content: inputMessage,
       isUser: true,
       timestamp: new Date(),
@@ -112,20 +131,13 @@ export default function Chatbot() {
     setIsSending(true);
 
     try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt: newMessage.content,
-          context: usecase?.context ?? "",
-          fast: readSetting<boolean>("settings.fastMode", false),
-        }),
-      });
-      const data = await res.json();
-      const replyText =
-        typeof data?.reply === "string" && data.reply.trim()
-          ? data.reply
-          : "Sorry, I couldn't generate a reply.";
+      const data = await sendChatMessage(
+        newMessage.content,
+        usecase?.context ?? "",
+        readSetting<boolean>("settings.fastMode", true),
+      );
+
+      const replyText = data.reply || "Sorry, I couldn't generate a reply.";
 
       let finalText = replyText;
       const storedAuto = readSetting<boolean>("settings.autoTranslate", false);
@@ -133,27 +145,21 @@ export default function Chatbot() {
       const effectiveTarget = targetLang ?? (storedAuto ? storedTL : null);
       if (effectiveTarget) {
         try {
-          const tr = await fetch("/api/translate", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              text: replyText,
-              source: "auto",
-              target: effectiveTarget,
-            }),
-          });
-          const trData = await tr.json();
-          if (
-            typeof trData?.translation === "string" &&
-            trData.translation.trim()
-          ) {
+          const trData = await translateText(
+            replyText,
+            "auto",
+            effectiveTarget,
+          );
+          if (trData.translation && trData.translation.trim()) {
             finalText = trData.translation;
           }
-        } catch {}
+        } catch (error) {
+          finalText = replyText + " [Auto-translation failed]";
+        }
       }
 
       const botResponse: Message = {
-        id: (Date.now() + 1).toString(),
+        id: getNextMessageId(),
         content: finalText,
         isUser: false,
         timestamp: new Date(),
@@ -161,7 +167,7 @@ export default function Chatbot() {
       setMessages((prev) => [...prev, botResponse]);
     } catch (e) {
       const botResponse: Message = {
-        id: (Date.now() + 1).toString(),
+        id: getNextMessageId(),
         content: "There was an error contacting the server.",
         isUser: false,
         timestamp: new Date(),
@@ -275,26 +281,33 @@ export default function Chatbot() {
     if (!text) return;
     setTranslating(true);
     try {
-      const res = await fetch("/api/translate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text,
-          source: detectedLang || "auto",
-          target: to,
-        }),
-      });
-      const data = await res.json();
-      const translated: string = data?.translation || "";
-      if (translated) {
+      const data = await translateText(text, detectedLang || "auto", to);
+
+      if (data.translation) {
         const botResponse: Message = {
-          id: (Date.now() + 2).toString(),
-          content: translated,
+          id: getNextMessageId(),
+          content: data.translation,
+          isUser: false,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, botResponse]);
+      } else {
+        const botResponse: Message = {
+          id: getNextMessageId(),
+          content: "❌ No translation received. Please try again.",
           isUser: false,
           timestamp: new Date(),
         };
         setMessages((prev) => [...prev, botResponse]);
       }
+    } catch (error) {
+      const botResponse: Message = {
+        id: getNextMessageId(),
+        content: "❌ Translation service unavailable. Please try again later.",
+        isUser: false,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, botResponse]);
     } finally {
       setTranslating(false);
     }
@@ -319,17 +332,13 @@ export default function Chatbot() {
     return parts.length ? parts : [t];
   };
 
-  const playWithServerTTS = async (text: string, lang: string) => {
+  const playWithTTS = async (text: string, lang: string) => {
     const chunks = chunkText(text);
     audioRef.current?.pause?.();
     audioRef.current = new Audio();
 
     for (let i = 0; i < chunks.length; i++) {
-      const q = encodeURIComponent(chunks[i]);
-      const l = encodeURIComponent(lang);
-      const res = await fetch(`/api/tts?text=${q}&lang=${l}`);
-      if (!res.ok) throw new Error("tts-failed");
-      const blob = await res.blob();
+      const blob = await generateTTS(chunks[i], lang);
       const url = URL.createObjectURL(blob);
       await new Promise<void>((resolve, reject) => {
         if (!audioRef.current) {
@@ -370,9 +379,9 @@ export default function Chatbot() {
     const lang = detectedLang || guessLang(textToSpeak) || "en";
     setIsSpeaking(true);
 
-    // Try server-based TTS first for broader language coverage
+    // Try Google TTS first for broader language coverage
     try {
-      await playWithServerTTS(textToSpeak, lang);
+      await playWithTTS(textToSpeak, lang);
       setIsSpeaking(false);
       return;
     } catch {}
@@ -471,16 +480,10 @@ export default function Chatbot() {
     const t = setTimeout(async () => {
       try {
         setDetecting(true);
-        const res = await fetch("/api/detect-lang", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text }),
-        });
-        const data = await res.json();
+        const data = await detectLanguage(text);
         if (cancelled) return;
         let lang: string | null = data?.language ?? null;
-        let conf: number | null =
-          typeof data?.confidence === "number" ? data.confidence : null;
+        let conf: number | null = data?.confidence;
         if (!lang && guess) {
           lang = guess;
           conf = null;
@@ -510,6 +513,59 @@ export default function Chatbot() {
     } catch {
       return code;
     }
+  };
+
+  // Advanced image preprocessing function for better OCR quality
+  const preprocessImageForOCR = async (dataUrl: string): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d")!;
+
+        // Scale up for better quality (3x instead of 2x)
+        const scale = 3;
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+
+        // Enable high-quality image smoothing
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
+
+        // Fill with white background
+        ctx.fillStyle = "white";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Draw image at scaled size
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        // Get image data for processing
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+
+        // Advanced preprocessing: threshold-based binarization
+        for (let i = 0; i < data.length; i += 4) {
+          const gray =
+            0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+
+          // Adaptive threshold: make text black, background white
+          const threshold = 130; // Adjust this value for different image types
+          const processed = gray < threshold ? 0 : 255; // Black text, white background
+
+          data[i] = processed; // Red
+          data[i + 1] = processed; // Green
+          data[i + 2] = processed; // Blue
+          // Alpha remains the same
+        }
+
+        // Put processed image data back
+        ctx.putImageData(imageData, 0, 0);
+
+        // Return as high-quality PNG for better text preservation
+        resolve(canvas.toDataURL("image/png"));
+      };
+      img.src = dataUrl;
+    });
   };
 
   return (
@@ -649,7 +705,7 @@ export default function Chatbot() {
                     },
                     {
                       key: "womens_rights",
-                      title: "Women’s Rights",
+                      title: "Women���s Rights",
                       description:
                         "Private multilingual guidance on health, rights, safety.",
                       context:
@@ -685,7 +741,7 @@ export default function Chatbot() {
                       onClick={() => {
                         setUsecase(uc);
                         const info: Message = {
-                          id: (Date.now() + 3).toString(),
+                          id: getNextMessageId(),
                           content: `Mode set: ${uc.title}. ${uc.description}`,
                           isUser: false,
                           timestamp: new Date(),
@@ -709,11 +765,43 @@ export default function Chatbot() {
                 </Button>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>Image to Text</DialogTitle>
+                    <DialogTitle>Image to Text & Translation</DialogTitle>
                     <DialogDescription>
-                      Open your camera, capture, and extract text.
+                      Capture/upload image, extract text, and optionally
+                      translate it.
                     </DialogDescription>
                   </DialogHeader>
+
+                  <div className="mb-4 space-y-3">
+                    <div>
+                      <Label>Translate extracted text to:</Label>
+                      <div className="mt-2">
+                        <Select
+                          value={ocrTranslateLang || "none"}
+                          onValueChange={(value) =>
+                            setOcrTranslateLang(value === "none" ? null : value)
+                          }
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="No translation (extract only)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">No translation</SelectItem>
+                            {languages.map((l) => (
+                              <SelectItem key={l.code} value={l.code}>
+                                {l.name} ({l.code})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Current OCR language:{" "}
+                        {readSetting<string>("settings.ocrLang", "en")} (change
+                        in Settings)
+                      </p>
+                    </div>
+                  </div>
                   <div className="space-y-3">
                     <video
                       ref={videoRef}
@@ -722,6 +810,212 @@ export default function Chatbot() {
                       playsInline
                       muted
                     ></video>
+                    <div className="text-center">
+                      <p className="text-sm text-muted-foreground mb-2">
+                        Use camera or upload an image file
+                      </p>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="mb-2"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+
+                          setOcrLoading(true);
+
+                          const showMessage = (content: string) => {
+                            const msg: Message = {
+                              id: getNextMessageId(),
+                              content,
+                              isUser: false,
+                              timestamp: new Date(),
+                            };
+                            setMessages((prev) => [...prev, msg]);
+                          };
+
+                          try {
+                            // Convert file to data URL
+                            const dataUrl = await new Promise<string>(
+                              (resolve) => {
+                                const reader = new FileReader();
+                                reader.onload = (e) =>
+                                  resolve(e.target?.result as string);
+                                reader.readAsDataURL(file);
+                              },
+                            );
+
+                            const ocrLang = readSetting<string>(
+                              "settings.ocrLang",
+                              "en",
+                            );
+
+                            // Map language codes for Tesseract
+                            const tesseractLangMap: Record<string, string> = {
+                              en: "eng",
+                              es: "spa",
+                              fr: "fra",
+                              de: "deu",
+                              it: "ita",
+                              pt: "por",
+                              ru: "rus",
+                              ja: "jpn",
+                              ko: "kor",
+                              zh: "chi_sim",
+                              ar: "ara",
+                              hi: "hin",
+                              th: "tha",
+                              vi: "vie",
+                              tr: "tur",
+                              pl: "pol",
+                              nl: "nld",
+                              sv: "swe",
+                              da: "dan",
+                              fi: "fin",
+                              cs: "ces",
+                              hu: "hun",
+                              el: "ell",
+                              bg: "bul",
+                              hr: "hrv",
+                              sl: "slv",
+                              ta: "tam",
+                              te: "tel",
+                              bn: "ben",
+                              ur: "urd",
+                            };
+
+                            const tesseractLang =
+                              tesseractLangMap[ocrLang] || "eng";
+
+                            // Load Tesseract.js if needed
+                            if (!(window as any).Tesseract) {
+                              showMessage("📦 Loading OCR engine...");
+                              await new Promise<void>((resolve, reject) => {
+                                const script = document.createElement("script");
+                                script.src =
+                                  "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+                                script.onload = () => resolve();
+                                script.onerror = () =>
+                                  reject(new Error("Failed to load OCR"));
+                                document.head.appendChild(script);
+                              });
+                            }
+
+                            // Preprocess uploaded image for better OCR
+                            showMessage("🔧 Enhancing uploaded image...");
+                            const preprocessedImage =
+                              await preprocessImageForOCR(dataUrl);
+
+                            showMessage("🔍 Processing enhanced image...");
+                            const { Tesseract } = window as any;
+
+                            const result = await Tesseract.recognize(
+                              preprocessedImage,
+                              tesseractLang,
+                              {
+                                tessedit_pageseg_mode: Tesseract.PSM.AUTO,
+                                tessedit_ocr_engine_mode:
+                                  Tesseract.OEM.LSTM_ONLY,
+                                preserve_interword_spaces: "1",
+                                tessedit_char_blacklist: "|",
+                              },
+                            );
+
+                            let extractedText = result?.data?.text?.trim();
+
+                            // Clean up the extracted text
+                            if (extractedText) {
+                              extractedText = extractedText
+                                .replace(/\s+/g, " ") // Multiple spaces to single space
+                                .replace(/[^\w\s.,!?;:()\-'"]/g, " ") // Remove most special characters but keep common punctuation
+                                .replace(/\s+/g, " ") // Clean up any double spaces created
+                                .trim();
+                            }
+
+                            if (extractedText && extractedText.length > 2) {
+                              // Add extracted text to input
+                              setInputMessage(
+                                (prev) =>
+                                  (prev ? prev + " " : "") + extractedText,
+                              );
+
+                              // Show original extracted text
+                              showMessage(
+                                `📄 Text from file (${ocrLang}): "${extractedText}"`,
+                              );
+
+                              // Auto-translate if target language is selected
+                              if (
+                                ocrTranslateLang &&
+                                ocrTranslateLang !== ocrLang
+                              ) {
+                                showMessage("🌍 Translating extracted text...");
+
+                                try {
+                                  const translateRes = await fetch(
+                                    "/api/translate",
+                                    {
+                                      method: "POST",
+                                      headers: {
+                                        "Content-Type": "application/json",
+                                      },
+                                      body: JSON.stringify({
+                                        text: extractedText,
+                                        source: ocrLang,
+                                        target: ocrTranslateLang,
+                                      }),
+                                    },
+                                  );
+
+                                  const translateData =
+                                    await translateRes.json();
+
+                                  if (
+                                    translateRes.ok &&
+                                    translateData.translation
+                                  ) {
+                                    const translatedText =
+                                      translateData.translation.trim();
+
+                                    // Add translated text to input
+                                    setInputMessage(
+                                      (prev) => prev + " → " + translatedText,
+                                    );
+
+                                    // Show translated result
+                                    showMessage(
+                                      `✅ Translated to ${ocrTranslateLang}: "${translatedText}"`,
+                                    );
+                                  } else {
+                                    showMessage(
+                                      "❌ Translation failed. Using original text only.",
+                                    );
+                                  }
+                                } catch {
+                                  showMessage(
+                                    "❌ Translation service unavailable. Using original text only.",
+                                  );
+                                }
+                              } else {
+                                showMessage(
+                                  `✅ File processing complete! Ready to send.`,
+                                );
+                              }
+                            } else {
+                              showMessage(
+                                "⚠️ No clear text detected in uploaded image.",
+                              );
+                            }
+                          } catch (error) {
+                            showMessage("❌ Failed to process uploaded image.");
+                          } finally {
+                            setOcrLoading(false);
+                            // Clear the file input
+                            e.target.value = "";
+                          }
+                        }}
+                      />
+                    </div>
                     <div className="flex gap-2">
                       <Button
                         variant="outline"
@@ -754,47 +1048,224 @@ export default function Chatbot() {
                           const video = videoRef.current;
                           if (!video) return;
                           const canvas = document.createElement("canvas");
-                          canvas.width = video.videoWidth || 640;
-                          canvas.height = video.videoHeight || 480;
+
+                          // Limit image size to reduce payload
+                          const maxWidth = 800;
+                          const maxHeight = 600;
+                          let { videoWidth = 640, videoHeight = 480 } = video;
+
+                          // Scale down if too large
+                          if (
+                            videoWidth > maxWidth ||
+                            videoHeight > maxHeight
+                          ) {
+                            const scale = Math.min(
+                              maxWidth / videoWidth,
+                              maxHeight / videoHeight,
+                            );
+                            videoWidth *= scale;
+                            videoHeight *= scale;
+                          }
+
+                          canvas.width = videoWidth;
+                          canvas.height = videoHeight;
                           const ctx = canvas.getContext("2d");
                           if (!ctx) return;
-                          ctx.drawImage(
-                            video,
-                            0,
-                            0,
-                            canvas.width,
-                            canvas.height,
-                          );
-                          const dataUrl = canvas.toDataURL("image/png");
+                          ctx.drawImage(video, 0, 0, videoWidth, videoHeight);
+
+                          // Use JPEG with compression for smaller file size
+                          const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
                           setOcrLoading(true);
+
+                          const showMessage = (
+                            content: string,
+                            isSuccess: boolean = false,
+                          ) => {
+                            const msg: Message = {
+                              id: getNextMessageId(),
+                              content,
+                              isUser: false,
+                              timestamp: new Date(),
+                            };
+                            setMessages((prev) => [...prev, msg]);
+                          };
+
                           try {
-                            // Load Tesseract.js from CDN lazily
+                            const ocrLang = readSetting<string>(
+                              "settings.ocrLang",
+                              "en",
+                            );
+
+                            // Map language codes for Tesseract
+                            const tesseractLangMap: Record<string, string> = {
+                              en: "eng",
+                              es: "spa",
+                              fr: "fra",
+                              de: "deu",
+                              it: "ita",
+                              pt: "por",
+                              ru: "rus",
+                              ja: "jpn",
+                              ko: "kor",
+                              zh: "chi_sim",
+                              ar: "ara",
+                              hi: "hin",
+                              th: "tha",
+                              vi: "vie",
+                              tr: "tur",
+                              pl: "pol",
+                              nl: "nld",
+                              sv: "swe",
+                              da: "dan",
+                              fi: "fin",
+                              cs: "ces",
+                              hu: "hun",
+                              el: "ell",
+                              bg: "bul",
+                              hr: "hrv",
+                              sl: "slv",
+                              ta: "tam",
+                              te: "tel",
+                              bn: "ben",
+                              ur: "urd",
+                            };
+
+                            const tesseractLang =
+                              tesseractLangMap[ocrLang] || "eng";
+
+                            // Load Tesseract.js dynamically
                             if (!(window as any).Tesseract) {
+                              showMessage("📦 Loading OCR engine...");
                               await new Promise<void>((resolve, reject) => {
-                                const s = document.createElement("script");
-                                s.src =
+                                const script = document.createElement("script");
+                                script.src =
                                   "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
-                                s.onload = () => resolve();
-                                s.onerror = () =>
+                                script.onload = () => resolve();
+                                script.onerror = () =>
                                   reject(new Error("Failed to load OCR"));
-                                document.head.appendChild(s);
+                                document.head.appendChild(script);
                               });
                             }
+
+                            // Preprocess image for better OCR
+                            showMessage("🔧 Enhancing image quality...");
+                            const preprocessedImage =
+                              await preprocessImageForOCR(dataUrl);
+
+                            showMessage("🔍 Processing enhanced image...");
                             const { Tesseract } = window as any;
-                            const ocr = readSetting<string>(
-                              "settings.ocrLang",
-                              "eng",
-                            );
+
                             const result = await Tesseract.recognize(
-                              dataUrl,
-                              ocr,
+                              preprocessedImage,
+                              tesseractLang,
+                              {
+                                logger: (m: any) => {
+                                  if (m.status === "recognizing text") {
+                                    const progress = Math.round(
+                                      m.progress * 100,
+                                    );
+                                    console.log(`OCR Progress: ${progress}%`);
+                                  }
+                                },
+                                tessedit_pageseg_mode: Tesseract.PSM.AUTO,
+                                tessedit_ocr_engine_mode:
+                                  Tesseract.OEM.LSTM_ONLY,
+                                preserve_interword_spaces: "1",
+                                tessedit_char_blacklist: "|",
+                              },
                             );
-                            const text = result?.data?.text?.trim();
-                            if (text)
+
+                            let extractedText = result?.data?.text?.trim();
+
+                            // Clean up the extracted text
+                            if (extractedText) {
+                              extractedText = extractedText
+                                .replace(/\s+/g, " ") // Multiple spaces to single space
+                                .replace(/[^\w\s.,!?;:()\-'"]/g, " ") // Remove most special characters but keep common punctuation
+                                .replace(/\s+/g, " ") // Clean up any double spaces created
+                                .trim();
+                            }
+
+                            if (extractedText && extractedText.length > 2) {
+                              // Add extracted text to input
                               setInputMessage(
-                                (prev) => (prev ? prev + " " : "") + text,
+                                (prev) =>
+                                  (prev ? prev + " " : "") + extractedText,
                               );
-                          } catch {}
+
+                              // Show original extracted text
+                              showMessage(
+                                `📄 Original text (${ocrLang}): "${extractedText}"`,
+                              );
+
+                              // Auto-translate if target language is selected
+                              if (
+                                ocrTranslateLang &&
+                                ocrTranslateLang !== ocrLang
+                              ) {
+                                showMessage("🌍 Translating extracted text...");
+
+                                try {
+                                  const translateRes = await fetch(
+                                    "/api/translate",
+                                    {
+                                      method: "POST",
+                                      headers: {
+                                        "Content-Type": "application/json",
+                                      },
+                                      body: JSON.stringify({
+                                        text: extractedText,
+                                        source: ocrLang,
+                                        target: ocrTranslateLang,
+                                      }),
+                                    },
+                                  );
+
+                                  const translateData =
+                                    await translateRes.json();
+
+                                  if (
+                                    translateRes.ok &&
+                                    translateData.translation
+                                  ) {
+                                    const translatedText =
+                                      translateData.translation.trim();
+
+                                    // Add translated text to input
+                                    setInputMessage(
+                                      (prev) => prev + " → " + translatedText,
+                                    );
+
+                                    // Show translated result
+                                    showMessage(
+                                      `✅ Translated to ${ocrTranslateLang}: "${translatedText}"`,
+                                    );
+                                  } else {
+                                    showMessage(
+                                      "❌ Translation failed. Using original text only.",
+                                    );
+                                  }
+                                } catch {
+                                  showMessage(
+                                    "❌ Translation service unavailable. Using original text only.",
+                                  );
+                                }
+                              } else {
+                                showMessage(
+                                  `✅ Text extraction complete! Ready to send.`,
+                                );
+                              }
+                            } else {
+                              showMessage(
+                                "⚠️ No clear text detected. Try with better lighting or clearer text.",
+                              );
+                            }
+                          } catch (error) {
+                            console.error("OCR Error:", error);
+                            showMessage(
+                              "❌ OCR failed. Please ensure the image has clear, readable text.",
+                            );
+                          }
                           setOcrLoading(false);
                         }}
                         disabled={ocrLoading}

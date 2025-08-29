@@ -71,11 +71,11 @@ export default function Settings() {
   );
   const [fastMode, setFastMode] = useLocalStorage<boolean>(
     "settings.fastMode",
-    false,
+    true,
   );
   const [ocrLang, setOcrLang] = useLocalStorage<string>(
     "settings.ocrLang",
-    "eng",
+    "en",
   );
   const [fontScale, setFontScale] = useLocalStorage<number>(
     "settings.fontScale",
@@ -318,11 +318,21 @@ export default function Settings() {
                             System default
                           </SelectItem>
                         ) : (
-                          voices.map((v) => (
-                            <SelectItem key={v.voiceURI} value={v.voiceURI}>
-                              {v.name} {v.lang ? `(${v.lang})` : ""}
-                            </SelectItem>
-                          ))
+                          voices
+                            .filter(
+                              (v, index, arr) =>
+                                arr.findIndex(
+                                  (voice) => voice.voiceURI === v.voiceURI,
+                                ) === index,
+                            )
+                            .map((v, index) => (
+                              <SelectItem
+                                key={`${v.voiceURI}-${index}`}
+                                value={v.voiceURI}
+                              >
+                                {v.name} {v.lang ? `(${v.lang})` : ""}
+                              </SelectItem>
+                            ))
                         )}
                       </SelectContent>
                     </Select>
@@ -341,24 +351,44 @@ export default function Settings() {
                         <SelectValue placeholder="Select OCR language" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="eng">English (eng)</SelectItem>
-                        <SelectItem value="spa">Spanish (spa)</SelectItem>
-                        <SelectItem value="fra">French (fra)</SelectItem>
-                        <SelectItem value="deu">German (deu)</SelectItem>
-                        <SelectItem value="hin">Hindi (hin)</SelectItem>
-                        <SelectItem value="ara">Arabic (ara)</SelectItem>
-                        <SelectItem value="ben">Bengali (ben)</SelectItem>
-                        <SelectItem value="tam">Tamil (tam)</SelectItem>
-                        <SelectItem value="tel">Telugu (tel)</SelectItem>
-                        <SelectItem value="jpn">Japanese (jpn)</SelectItem>
-                        <SelectItem value="kor">Korean (kor)</SelectItem>
-                        <SelectItem value="chi_sim">
-                          Chinese Simplified (chi_sim)
+                        <SelectItem value="en">English</SelectItem>
+                        <SelectItem value="ar">Arabic</SelectItem>
+                        <SelectItem value="bg">Bulgarian</SelectItem>
+                        <SelectItem value="zh">Chinese (Simplified)</SelectItem>
+                        <SelectItem value="zh-TW">
+                          Chinese (Traditional)
                         </SelectItem>
+                        <SelectItem value="hr">Croatian</SelectItem>
+                        <SelectItem value="cs">Czech</SelectItem>
+                        <SelectItem value="da">Danish</SelectItem>
+                        <SelectItem value="nl">Dutch</SelectItem>
+                        <SelectItem value="fi">Finnish</SelectItem>
+                        <SelectItem value="fr">French</SelectItem>
+                        <SelectItem value="de">German</SelectItem>
+                        <SelectItem value="el">Greek</SelectItem>
+                        <SelectItem value="hi">Hindi</SelectItem>
+                        <SelectItem value="hu">Hungarian</SelectItem>
+                        <SelectItem value="ko">Korean</SelectItem>
+                        <SelectItem value="it">Italian</SelectItem>
+                        <SelectItem value="ja">Japanese</SelectItem>
+                        <SelectItem value="pl">Polish</SelectItem>
+                        <SelectItem value="pt">Portuguese</SelectItem>
+                        <SelectItem value="ru">Russian</SelectItem>
+                        <SelectItem value="sl">Slovenian</SelectItem>
+                        <SelectItem value="es">Spanish</SelectItem>
+                        <SelectItem value="sv">Swedish</SelectItem>
+                        <SelectItem value="tr">Turkish</SelectItem>
+                        <SelectItem value="ur">Urdu</SelectItem>
+                        <SelectItem value="vi">Vietnamese</SelectItem>
+                        <SelectItem value="th">Thai</SelectItem>
+                        <SelectItem value="ta">Tamil</SelectItem>
+                        <SelectItem value="te">Telugu</SelectItem>
+                        <SelectItem value="bn">Bengali</SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Used by Image to Text.
+                      Language for Image to Text OCR. Works offline using
+                      Tesseract.js.
                     </p>
                   </div>
                 </div>
