@@ -122,6 +122,27 @@ export default function Chatbot() {
         }),
       });
       const data = await res.json();
+
+      // Handle quota exceeded error specifically
+      if (!res.ok) {
+        let errorMessage = "Sorry, I couldn't generate a reply.";
+
+        if (res.status === 429 || data?.error?.includes("quota")) {
+          errorMessage = "🚫 Google AI quota exceeded for today. Please try again tomorrow or upgrade your API plan for unlimited usage.";
+        } else if (data?.error) {
+          errorMessage = `Error: ${data.error}`;
+        }
+
+        const botResponse: Message = {
+          id: (Date.now() + 1).toString(),
+          content: errorMessage,
+          isUser: false,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, botResponse]);
+        return;
+      }
+
       const replyText =
         typeof data?.reply === "string" && data.reply.trim()
           ? data.reply
