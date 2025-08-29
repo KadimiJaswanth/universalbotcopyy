@@ -52,6 +52,17 @@ export const handleChat: RequestHandler = async (req, res) => {
 
     if (!response.ok) {
       const text = await response.text().catch(() => "");
+
+      // Handle quota exceeded specifically
+      if (response.status === 429 || text.includes("quota") || text.includes("RESOURCE_EXHAUSTED")) {
+        res.status(429).json({
+          error: "Google API quota exceeded",
+          message: "The Google API daily quota has been reached. Please try again later or upgrade your API plan.",
+          detail: text
+        });
+        return;
+      }
+
       res.status(502).json({ error: "Upstream error", detail: text });
       return;
     }
