@@ -128,7 +128,7 @@ export default function Chatbot() {
         let errorMessage = "Sorry, I couldn't generate a reply.";
 
         if (res.status === 429 || data?.error?.includes("quota")) {
-          errorMessage = "🚫 Google AI quota exceeded for today. Please try again tomorrow or upgrade your API plan for unlimited usage.";
+          errorMessage = "�� Google AI quota exceeded for today. Please try again tomorrow or upgrade your API plan for unlimited usage.";
         } else if (data?.error) {
           errorMessage = `Error: ${data.error}`;
         }
@@ -781,6 +781,87 @@ export default function Chatbot() {
                       playsInline
                       muted
                     ></video>
+                    <div className="text-center">
+                      <p className="text-sm text-muted-foreground mb-2">
+                        Use camera or upload an image file
+                      </p>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="mb-2"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+
+                          setOcrLoading(true);
+
+                          const showMessage = (content: string) => {
+                            const msg: Message = {
+                              id: (Date.now() + 4).toString(),
+                              content,
+                              isUser: false,
+                              timestamp: new Date(),
+                            };
+                            setMessages((prev) => [...prev, msg]);
+                          };
+
+                          try {
+                            // Convert file to data URL
+                            const dataUrl = await new Promise<string>((resolve) => {
+                              const reader = new FileReader();
+                              reader.onload = (e) => resolve(e.target?.result as string);
+                              reader.readAsDataURL(file);
+                            });
+
+                            const ocrLang = readSetting<string>("settings.ocrLang", "en");
+
+                            // Map language codes for Tesseract
+                            const tesseractLangMap: Record<string, string> = {
+                              'en': 'eng', 'es': 'spa', 'fr': 'fra', 'de': 'deu', 'it': 'ita',
+                              'pt': 'por', 'ru': 'rus', 'ja': 'jpn', 'ko': 'kor', 'zh': 'chi_sim',
+                              'ar': 'ara', 'hi': 'hin', 'th': 'tha', 'vi': 'vie', 'tr': 'tur',
+                              'pl': 'pol', 'nl': 'nld', 'sv': 'swe', 'da': 'dan', 'fi': 'fin',
+                              'cs': 'ces', 'hu': 'hun', 'el': 'ell', 'bg': 'bul', 'hr': 'hrv',
+                              'sl': 'slv', 'ta': 'tam', 'te': 'tel', 'bn': 'ben', 'ur': 'urd'
+                            };
+
+                            const tesseractLang = tesseractLangMap[ocrLang] || 'eng';
+
+                            // Load Tesseract.js if needed
+                            if (!(window as any).Tesseract) {
+                              showMessage("📦 Loading OCR engine...");
+                              await new Promise<void>((resolve, reject) => {
+                                const script = document.createElement("script");
+                                script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+                                script.onload = () => resolve();
+                                script.onerror = () => reject(new Error("Failed to load OCR"));
+                                document.head.appendChild(script);
+                              });
+                            }
+
+                            showMessage("🔍 Processing uploaded image...");
+                            const { Tesseract } = window as any;
+
+                            const result = await Tesseract.recognize(dataUrl, tesseractLang);
+                            const extractedText = result?.data?.text?.trim();
+
+                            if (extractedText && extractedText.length > 2) {
+                              setInputMessage((prev) => (prev ? prev + " " : "") + extractedText);
+                              showMessage(`✅ Text extracted from file (${ocrLang}): "${extractedText.substring(0, 100)}${extractedText.length > 100 ? "..." : ""}"`);
+                            } else {
+                              showMessage("⚠️ No text detected in uploaded image.");
+                            }
+
+                          } catch (error) {
+                            showMessage("❌ Failed to process uploaded image.");
+                          } finally {
+                            setOcrLoading(false);
+                            // Clear the file input
+                            e.target.value = '';
+                          }
+                        }}
+                      />
+                    </div>
                     <div className="flex gap-2">
                       <Button
                         variant="outline"
