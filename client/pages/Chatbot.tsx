@@ -838,7 +838,7 @@ export default function Chatbot() {
                           try {
                             const ocrLang = readSetting<string>(
                               "settings.ocrLang",
-                              "eng",
+                              "en",
                             );
 
                             const response = await fetch("/api/ocr", {

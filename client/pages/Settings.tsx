@@ -75,7 +75,7 @@ export default function Settings() {
   );
   const [ocrLang, setOcrLang] = useLocalStorage<string>(
     "settings.ocrLang",
-    "eng",
+    "en",
   );
   const [fontScale, setFontScale] = useLocalStorage<number>(
     "settings.fontScale",
@@ -345,30 +345,37 @@ export default function Settings() {
                         <SelectValue placeholder="Select OCR language" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="eng">English</SelectItem>
-                        <SelectItem value="ara">Arabic</SelectItem>
-                        <SelectItem value="bul">Bulgarian</SelectItem>
-                        <SelectItem value="chs">Chinese (Simplified)</SelectItem>
-                        <SelectItem value="cht">Chinese (Traditional)</SelectItem>
-                        <SelectItem value="hrv">Croatian</SelectItem>
-                        <SelectItem value="cze">Czech</SelectItem>
-                        <SelectItem value="dan">Danish</SelectItem>
-                        <SelectItem value="dut">Dutch</SelectItem>
-                        <SelectItem value="fin">Finnish</SelectItem>
-                        <SelectItem value="fre">French</SelectItem>
-                        <SelectItem value="ger">German</SelectItem>
-                        <SelectItem value="gre">Greek</SelectItem>
-                        <SelectItem value="hun">Hungarian</SelectItem>
-                        <SelectItem value="kor">Korean</SelectItem>
-                        <SelectItem value="ita">Italian</SelectItem>
-                        <SelectItem value="jpn">Japanese</SelectItem>
-                        <SelectItem value="pol">Polish</SelectItem>
-                        <SelectItem value="por">Portuguese</SelectItem>
-                        <SelectItem value="rus">Russian</SelectItem>
-                        <SelectItem value="slv">Slovenian</SelectItem>
-                        <SelectItem value="spa">Spanish</SelectItem>
-                        <SelectItem value="swe">Swedish</SelectItem>
-                        <SelectItem value="tur">Turkish</SelectItem>
+                        <SelectItem value="en">English</SelectItem>
+                        <SelectItem value="ar">Arabic</SelectItem>
+                        <SelectItem value="bg">Bulgarian</SelectItem>
+                        <SelectItem value="zh">Chinese (Simplified)</SelectItem>
+                        <SelectItem value="zh-TW">Chinese (Traditional)</SelectItem>
+                        <SelectItem value="hr">Croatian</SelectItem>
+                        <SelectItem value="cs">Czech</SelectItem>
+                        <SelectItem value="da">Danish</SelectItem>
+                        <SelectItem value="nl">Dutch</SelectItem>
+                        <SelectItem value="fi">Finnish</SelectItem>
+                        <SelectItem value="fr">French</SelectItem>
+                        <SelectItem value="de">German</SelectItem>
+                        <SelectItem value="el">Greek</SelectItem>
+                        <SelectItem value="hi">Hindi</SelectItem>
+                        <SelectItem value="hu">Hungarian</SelectItem>
+                        <SelectItem value="ko">Korean</SelectItem>
+                        <SelectItem value="it">Italian</SelectItem>
+                        <SelectItem value="ja">Japanese</SelectItem>
+                        <SelectItem value="pl">Polish</SelectItem>
+                        <SelectItem value="pt">Portuguese</SelectItem>
+                        <SelectItem value="ru">Russian</SelectItem>
+                        <SelectItem value="sl">Slovenian</SelectItem>
+                        <SelectItem value="es">Spanish</SelectItem>
+                        <SelectItem value="sv">Swedish</SelectItem>
+                        <SelectItem value="tr">Turkish</SelectItem>
+                        <SelectItem value="ur">Urdu</SelectItem>
+                        <SelectItem value="vi">Vietnamese</SelectItem>
+                        <SelectItem value="th">Thai</SelectItem>
+                        <SelectItem value="ta">Tamil</SelectItem>
+                        <SelectItem value="te">Telugu</SelectItem>
+                        <SelectItem value="bn">Bengali</SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground mt-1">
