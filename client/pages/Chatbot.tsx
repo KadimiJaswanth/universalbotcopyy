@@ -827,33 +827,54 @@ export default function Chatbot() {
                           const dataUrl = canvas.toDataURL("image/png");
                           setOcrLoading(true);
                           try {
-                            // Load Tesseract.js from CDN lazily
-                            if (!(window as any).Tesseract) {
-                              await new Promise<void>((resolve, reject) => {
-                                const s = document.createElement("script");
-                                s.src =
-                                  "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
-                                s.onload = () => resolve();
-                                s.onerror = () =>
-                                  reject(new Error("Failed to load OCR"));
-                                document.head.appendChild(s);
-                              });
-                            }
-                            const { Tesseract } = window as any;
-                            const ocr = readSetting<string>(
+                            const ocrLang = readSetting<string>(
                               "settings.ocrLang",
                               "eng",
                             );
-                            const result = await Tesseract.recognize(
-                              dataUrl,
-                              ocr,
-                            );
-                            const text = result?.data?.text?.trim();
-                            if (text)
+
+                            const response = await fetch("/api/ocr", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                image: dataUrl,
+                                language: ocrLang,
+                              }),
+                            });
+
+                            const data = await response.json();
+
+                            if (response.ok && data.text) {
                               setInputMessage(
-                                (prev) => (prev ? prev + " " : "") + text,
+                                (prev) => (prev ? prev + " " : "") + data.text.trim(),
                               );
-                          } catch {}
+
+                              // Show success message
+                              const successMsg: Message = {
+                                id: (Date.now() + 4).toString(),
+                                content: `✅ Text extracted from image (${ocrLang}): ${data.text.substring(0, 100)}${data.text.length > 100 ? "..." : ""}`,
+                                isUser: false,
+                                timestamp: new Date(),
+                              };
+                              setMessages((prev) => [...prev, successMsg]);
+                            } else {
+                              // Show error message
+                              const errorMsg: Message = {
+                                id: (Date.now() + 4).toString(),
+                                content: `❌ OCR failed: ${data.error || "Could not extract text from image"}`,
+                                isUser: false,
+                                timestamp: new Date(),
+                              };
+                              setMessages((prev) => [...prev, errorMsg]);
+                            }
+                          } catch (error) {
+                            const errorMsg: Message = {
+                              id: (Date.now() + 4).toString(),
+                              content: "❌ OCR service unavailable. Please try again later.",
+                              isUser: false,
+                              timestamp: new Date(),
+                            };
+                            setMessages((prev) => [...prev, errorMsg]);
+                          }
                           setOcrLoading(false);
                         }}
                         disabled={ocrLoading}
