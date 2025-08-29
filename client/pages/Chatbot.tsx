@@ -164,13 +164,19 @@ export default function Chatbot() {
             }),
           });
           const trData = await tr.json();
-          if (
-            typeof trData?.translation === "string" &&
-            trData.translation.trim()
-          ) {
+
+          if (tr.ok && typeof trData?.translation === "string" && trData.translation.trim()) {
             finalText = trData.translation;
+          } else if (!tr.ok) {
+            // If translation fails, add a note to the original response
+            const errorNote = tr.status === 429 || trData?.error?.includes("quota")
+              ? " [Auto-translation quota exceeded]"
+              : " [Auto-translation failed]";
+            finalText = replyText + errorNote;
           }
-        } catch {}
+        } catch {
+          finalText = replyText + " [Auto-translation unavailable]";
+        }
       }
 
       const botResponse: Message = {
