@@ -1,15 +1,15 @@
 import type { RequestHandler } from "express";
 
-// OCR API endpoint using the provided API key
-const OCR_API_URL = "https://api.ocr.space/parse/image";
+// Google Vision API endpoint for OCR
+const GOOGLE_VISION_URL = "https://vision.googleapis.com/v1/images:annotate";
 
 export const handleOCR: RequestHandler = async (req, res) => {
   try {
-    const apiKey = process.env.OCR_API_KEY;
-    console.log('OCR API Key available:', !!apiKey);
+    const apiKey = process.env.GOOGLE_API_KEY;
+    console.log('Google API Key available:', !!apiKey);
 
     if (!apiKey) {
-      res.status(500).json({ error: "Server is missing OCR_API_KEY" });
+      res.status(500).json({ error: "Server is missing GOOGLE_API_KEY" });
       return;
     }
 
@@ -22,36 +22,42 @@ export const handleOCR: RequestHandler = async (req, res) => {
 
     console.log('OCR Request - Language:', language, 'Image size:', image.length);
 
-    // Use the image directly if it's already a data URL
-    let imageData = image;
-    if (!image.startsWith('data:image/')) {
-      imageData = `data:image/jpeg;base64,${image}`;
+    // Extract base64 data from data URL
+    let base64Image = image;
+    if (image.startsWith('data:image/')) {
+      base64Image = image.split(',')[1];
     }
 
-    const formData = new URLSearchParams();
-    formData.append('apikey', apiKey);
-    formData.append('base64Image', imageData);
-    formData.append('language', language);
-    formData.append('isOverlayRequired', 'false');
-    formData.append('detectOrientation', 'true');
-    formData.append('scale', 'true');
-    formData.append('OCREngine', '2'); // Use OCR Engine 2 for better accuracy
+    const requestBody = {
+      requests: [{
+        image: {
+          content: base64Image
+        },
+        features: [{
+          type: "TEXT_DETECTION",
+          maxResults: 1
+        }],
+        imageContext: {
+          languageHints: [language === "eng" ? "en" : language]
+        }
+      }]
+    };
 
-    console.log('Sending OCR request to:', OCR_API_URL);
+    console.log('Sending OCR request to Google Vision API');
 
-    const response = await fetch(OCR_API_URL, {
+    const response = await fetch(`${GOOGLE_VISION_URL}?key=${apiKey}`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
       },
-      body: formData.toString(),
+      body: JSON.stringify(requestBody),
     });
 
-    console.log('OCR Response status:', response.status);
+    console.log('Google Vision Response status:', response.status);
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => '');
-      console.error('OCR API Error:', response.status, errorText);
+      console.error('Google Vision API Error:', response.status, errorText);
       res.status(502).json({
         error: "OCR service error",
         status: response.status,
@@ -61,28 +67,26 @@ export const handleOCR: RequestHandler = async (req, res) => {
     }
 
     const data = await response.json();
-    console.log('OCR Response data:', JSON.stringify(data, null, 2));
+    console.log('Google Vision Response:', JSON.stringify(data, null, 2));
 
-    if (data.IsErroredOnProcessing) {
-      console.error('OCR Processing Error:', data.ErrorMessage, data.ErrorDetails);
+    if (data.responses?.[0]?.error) {
+      console.error('Google Vision Processing Error:', data.responses[0].error);
       res.status(400).json({
         error: "OCR processing failed",
-        details: data.ErrorMessage || data.ErrorDetails
+        details: data.responses[0].error.message
       });
       return;
     }
 
-    // Extract text from all parsed results
-    const extractedText = data.ParsedResults
-      ?.map((result: any) => result.ParsedText)
-      .join('\n')
-      .trim() || '';
+    // Extract text from Google Vision response
+    const textAnnotations = data.responses?.[0]?.textAnnotations;
+    const extractedText = textAnnotations?.[0]?.description?.trim() || '';
 
     console.log('Extracted text:', extractedText);
 
     res.json({
       text: extractedText,
-      confidence: data.ParsedResults?.[0]?.TextOverlay?.Lines?.length || 0,
+      confidence: textAnnotations?.[0]?.score || 1,
       language: language
     });
 
