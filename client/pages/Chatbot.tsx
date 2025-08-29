@@ -835,54 +835,68 @@ export default function Chatbot() {
                           // Use JPEG with compression for smaller file size
                           const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
                           setOcrLoading(true);
-                          try {
-                            const ocrLang = readSetting<string>(
-                              "settings.ocrLang",
-                              "en",
-                            );
 
-                            const response = await fetch("/api/ocr", {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({
-                                image: dataUrl,
-                                language: ocrLang,
-                              }),
-                            });
-
-                            const data = await response.json();
-
-                            if (response.ok && data.text) {
-                              setInputMessage(
-                                (prev) => (prev ? prev + " " : "") + data.text.trim(),
-                              );
-
-                              // Show success message
-                              const successMsg: Message = {
-                                id: (Date.now() + 4).toString(),
-                                content: `✅ Text extracted from image (${ocrLang}): ${data.text.substring(0, 100)}${data.text.length > 100 ? "..." : ""}`,
-                                isUser: false,
-                                timestamp: new Date(),
-                              };
-                              setMessages((prev) => [...prev, successMsg]);
-                            } else {
-                              // Show error message
-                              const errorMsg: Message = {
-                                id: (Date.now() + 4).toString(),
-                                content: `❌ OCR failed: ${data.error || "Could not extract text from image"}`,
-                                isUser: false,
-                                timestamp: new Date(),
-                              };
-                              setMessages((prev) => [...prev, errorMsg]);
-                            }
-                          } catch (error) {
-                            const errorMsg: Message = {
+                          const showMessage = (content: string, isSuccess: boolean = false) => {
+                            const msg: Message = {
                               id: (Date.now() + 4).toString(),
-                              content: "❌ OCR service unavailable. Please try again later.",
+                              content,
                               isUser: false,
                               timestamp: new Date(),
                             };
-                            setMessages((prev) => [...prev, errorMsg]);
+                            setMessages((prev) => [...prev, msg]);
+                          };
+
+                          try {
+                            const ocrLang = readSetting<string>("settings.ocrLang", "en");
+
+                            // Map language codes for Tesseract
+                            const tesseractLangMap: Record<string, string> = {
+                              'en': 'eng', 'es': 'spa', 'fr': 'fra', 'de': 'deu', 'it': 'ita',
+                              'pt': 'por', 'ru': 'rus', 'ja': 'jpn', 'ko': 'kor', 'zh': 'chi_sim',
+                              'ar': 'ara', 'hi': 'hin', 'th': 'tha', 'vi': 'vie', 'tr': 'tur',
+                              'pl': 'pol', 'nl': 'nld', 'sv': 'swe', 'da': 'dan', 'fi': 'fin',
+                              'cs': 'ces', 'hu': 'hun', 'el': 'ell', 'bg': 'bul', 'hr': 'hrv',
+                              'sl': 'slv', 'ta': 'tam', 'te': 'tel', 'bn': 'ben', 'ur': 'urd'
+                            };
+
+                            const tesseractLang = tesseractLangMap[ocrLang] || 'eng';
+
+                            // Load Tesseract.js dynamically
+                            if (!(window as any).Tesseract) {
+                              showMessage("📦 Loading OCR engine...");
+                              await new Promise<void>((resolve, reject) => {
+                                const script = document.createElement("script");
+                                script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+                                script.onload = () => resolve();
+                                script.onerror = () => reject(new Error("Failed to load OCR"));
+                                document.head.appendChild(script);
+                              });
+                            }
+
+                            showMessage("🔍 Processing image...");
+                            const { Tesseract } = window as any;
+
+                            const result = await Tesseract.recognize(dataUrl, tesseractLang, {
+                              logger: (m: any) => {
+                                if (m.status === 'recognizing text') {
+                                  const progress = Math.round(m.progress * 100);
+                                  console.log(`OCR Progress: ${progress}%`);
+                                }
+                              }
+                            });
+
+                            const extractedText = result?.data?.text?.trim();
+
+                            if (extractedText && extractedText.length > 2) {
+                              setInputMessage((prev) => (prev ? prev + " " : "") + extractedText);
+                              showMessage(`✅ Text extracted (${ocrLang}): "${extractedText.substring(0, 100)}${extractedText.length > 100 ? "..." : ""}"`);
+                            } else {
+                              showMessage("⚠️ No text detected in image. Try with clearer text or different language.");
+                            }
+
+                          } catch (error) {
+                            console.error('OCR Error:', error);
+                            showMessage("❌ OCR failed. Please ensure the image has clear, readable text.");
                           }
                           setOcrLoading(false);
                         }}
