@@ -889,17 +889,34 @@ export default function Chatbot() {
                               });
                             }
 
-                            showMessage("🔍 Processing uploaded image...");
+                            // Preprocess uploaded image for better OCR
+                            showMessage("🔧 Enhancing uploaded image...");
+                            const preprocessedImage = await preprocessImageForOCR(dataUrl);
+
+                            showMessage("🔍 Processing enhanced image...");
                             const { Tesseract } = window as any;
 
-                            const result = await Tesseract.recognize(dataUrl, tesseractLang);
-                            const extractedText = result?.data?.text?.trim();
+                            const result = await Tesseract.recognize(preprocessedImage, tesseractLang, {
+                              tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK,
+                              tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,!?;:-()[]{}"\'/\\',
+                              preserve_interword_spaces: '1'
+                            });
+
+                            let extractedText = result?.data?.text?.trim();
+
+                            // Clean up the extracted text
+                            if (extractedText) {
+                              extractedText = extractedText
+                                .replace(/\s+/g, ' ')  // Multiple spaces to single space
+                                .replace(/[^\w\s.,!?;:()-]/g, '')  // Remove strange characters
+                                .trim();
+                            }
 
                             if (extractedText && extractedText.length > 2) {
                               setInputMessage((prev) => (prev ? prev + " " : "") + extractedText);
-                              showMessage(`✅ Text extracted from file (${ocrLang}): "${extractedText.substring(0, 100)}${extractedText.length > 100 ? "..." : ""}"`);
+                              showMessage(`✅ High-quality text from file (${ocrLang}): "${extractedText.substring(0, 150)}${extractedText.length > 150 ? "..." : ""}"`);
                             } else {
-                              showMessage("⚠️ No text detected in uploaded image.");
+                              showMessage("⚠️ No clear text detected in uploaded image.");
                             }
 
                           } catch (error) {
