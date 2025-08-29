@@ -75,16 +75,19 @@ export const handleChat: RequestHandler = async (req, res) => {
             parts: [{ text: fullPrompt }],
           },
         ],
-        ...(fast
+        generationConfig: fast
           ? {
-              generationConfig: {
-                maxOutputTokens: 128,
-                temperature: 0.7,
-                topP: 0.95,
-                topK: 40,
-              },
+              maxOutputTokens: 50,
+              temperature: 0.3,
+              topP: 0.8,
+              topK: 20,
             }
-          : {}),
+          : {
+              maxOutputTokens: 200,
+              temperature: 0.7,
+              topP: 0.95,
+              topK: 40,
+            },
       }),
     });
 
