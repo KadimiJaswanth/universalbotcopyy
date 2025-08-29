@@ -128,7 +128,7 @@ export default function Chatbot() {
         let errorMessage = "Sorry, I couldn't generate a reply.";
 
         if (res.status === 429 || data?.error?.includes("quota")) {
-          errorMessage = "�� Google AI quota exceeded for today. Please try again tomorrow or upgrade your API plan for unlimited usage.";
+          errorMessage = "🚫 Google AI quota exceeded for today. Please try again tomorrow or upgrade your API plan for unlimited usage.";
         } else if (data?.error) {
           errorMessage = `Error: ${data.error}`;
         }
@@ -954,25 +954,40 @@ export default function Chatbot() {
                               });
                             }
 
-                            showMessage("🔍 Processing image...");
+                            // Preprocess image for better OCR
+                            showMessage("🔧 Enhancing image quality...");
+                            const preprocessedImage = await preprocessImageForOCR(dataUrl);
+
+                            showMessage("🔍 Processing enhanced image...");
                             const { Tesseract } = window as any;
 
-                            const result = await Tesseract.recognize(dataUrl, tesseractLang, {
+                            const result = await Tesseract.recognize(preprocessedImage, tesseractLang, {
                               logger: (m: any) => {
                                 if (m.status === 'recognizing text') {
                                   const progress = Math.round(m.progress * 100);
                                   console.log(`OCR Progress: ${progress}%`);
                                 }
-                              }
+                              },
+                              tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK,
+                              tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,!?;:-()[]{}"\'/\\',
+                              preserve_interword_spaces: '1'
                             });
 
-                            const extractedText = result?.data?.text?.trim();
+                            let extractedText = result?.data?.text?.trim();
+
+                            // Clean up the extracted text
+                            if (extractedText) {
+                              extractedText = extractedText
+                                .replace(/\s+/g, ' ')  // Multiple spaces to single space
+                                .replace(/[^\w\s.,!?;:()-]/g, '')  // Remove strange characters
+                                .trim();
+                            }
 
                             if (extractedText && extractedText.length > 2) {
                               setInputMessage((prev) => (prev ? prev + " " : "") + extractedText);
-                              showMessage(`✅ Text extracted (${ocrLang}): "${extractedText.substring(0, 100)}${extractedText.length > 100 ? "..." : ""}"`);
+                              showMessage(`✅ High-quality text extracted (${ocrLang}): "${extractedText.substring(0, 150)}${extractedText.length > 150 ? "..." : ""}"`);
                             } else {
-                              showMessage("⚠️ No text detected in image. Try with clearer text or different language.");
+                              showMessage("⚠️ No clear text detected. Try with better lighting or clearer text.");
                             }
 
                           } catch (error) {
