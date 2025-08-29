@@ -1,5 +1,6 @@
 import type { RequestHandler } from "express";
 
+const GOOGLE_DETECT_URL = "https://translation.googleapis.com/language/translate/v2/detect";
 const BASES = [
   process.env.LIBRETRANSLATE_URL || "https://libretranslate.de",
   "https://libretranslate.com",
@@ -81,7 +82,35 @@ export const handleDetectLang: RequestHandler = async (req, res) => {
       return;
     }
 
-    // Try multiple LibreTranslate hosts
+    const apiKey = process.env.GOOGLE_API_KEY;
+
+    // Try Google Cloud Translation API first if API key is available
+    if (apiKey) {
+      try {
+        const params = new URLSearchParams({
+          key: apiKey,
+          q: text
+        });
+
+        const googleRes = await fetch(`${GOOGLE_DETECT_URL}?${params}`, {
+          method: "POST",
+        });
+
+        if (googleRes.ok) {
+          const data = await googleRes.json();
+          const detection = data?.data?.detections?.[0]?.[0];
+          if (detection?.language) {
+            res.json({
+              language: detection.language,
+              confidence: detection.confidence || null
+            });
+            return;
+          }
+        }
+      } catch {}
+    }
+
+    // Fallback to multiple LibreTranslate hosts
     for (const base of BASES) {
       const result = await tryLibreDetect(base, text);
       if (result?.language) {
@@ -90,7 +119,7 @@ export const handleDetectLang: RequestHandler = async (req, res) => {
       }
     }
 
-    // Fallback to Lingva
+    // Final fallback to Lingva
     const lingva = await tryLingvaDetect(text);
     if (lingva?.language) {
       res.json(lingva);

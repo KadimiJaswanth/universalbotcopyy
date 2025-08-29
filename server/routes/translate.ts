@@ -1,5 +1,6 @@
 import type { RequestHandler } from "express";
 
+const GOOGLE_TRANSLATE_URL = "https://translation.googleapis.com/language/translate/v2";
 const DEFAULT_BASE =
   process.env.LIBRETRANSLATE_URL || "https://libretranslate.de";
 
@@ -19,8 +20,37 @@ export const handleTranslate: RequestHandler = async (req, res) => {
     }
 
     const src = typeof source === "string" && source.trim() ? source : "auto";
+    const apiKey = process.env.GOOGLE_API_KEY;
 
-    // Try LibreTranslate first
+    // Try Google Cloud Translation API first if API key is available
+    if (apiKey) {
+      try {
+        const params = new URLSearchParams({
+          key: apiKey,
+          q: text,
+          target: target,
+          format: 'text'
+        });
+
+        if (src !== "auto") {
+          params.append('source', src);
+        }
+
+        const googleRes = await fetch(`${GOOGLE_TRANSLATE_URL}?${params}`, {
+          method: "POST",
+        });
+
+        if (googleRes.ok) {
+          const data = await googleRes.json();
+          const translated = data?.data?.translations?.[0]?.translatedText ?? "";
+          if (translated) {
+            return res.json({ translation: translated });
+          }
+        }
+      } catch {}
+    }
+
+    // Fallback to LibreTranslate
     try {
       const ltRes = await fetch(`${DEFAULT_BASE}/translate`, {
         method: "POST",
@@ -34,7 +64,7 @@ export const handleTranslate: RequestHandler = async (req, res) => {
       }
     } catch {}
 
-    // Fallback to Lingva (community Google wrapper)
+    // Final fallback to Lingva (community Google wrapper)
     try {
       const url = `https://lingva.ml/api/v1/${encodeURIComponent(src)}/${encodeURIComponent(target)}/${encodeURIComponent(text)}`;
       const lgRes = await fetch(url);
